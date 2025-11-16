@@ -1,0 +1,80 @@
+apiVersion: skaffold/v4beta6
+kind: Config
+
+build:
+  local:
+    push: false
+  artifacts:
+    - image: sdsd123654/auth
+      context: auth
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: 'src/**/*.ts'
+            dest: .
+    - image: sdsd123654/client
+      context: client
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: '**/*.js'
+            dest: .
+    - image: sdsd123654/tickets
+      context: tickets
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: 'src/**/*.ts'
+            dest: .
+    - image: sdsd123654/orders
+      context: orders
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: 'src/**/*.ts'
+            dest: .
+    - image: sdsd123654/expiration
+      context: expiration
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: 'src/**/*.ts'
+            dest: .
+    - image: sdsd123654/payments
+      context: payments
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: 'src/**/*.ts'
+            dest: .
+
+manifests:
+  kustomize:
+    paths:
+      - ./infra/k8s/full-deploy
+
+  hooks:
+    before:
+      - host:
+          command: ["kubectl", "apply", "-k", "./infra/k8s/kafka"]
+      - host:
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for kafka-topics-job to appear..."
+              until kubectl get job kafka-topics-job >/dev/null 2>&1; do
+                echo "Job not created yet..."
+                sleep 2
+              done
+              echo "Job found, waiting for completion..."
+              kubectl wait --for=condition=complete job/kafka-topics-job --timeout=180s
+
+deploy:
+  kubectl: {}

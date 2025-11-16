@@ -1,0 +1,13 @@
+resources:
+  - ingress-srv.yml
+  - auth-mongo-depl.yml
+  - tickets-mongo-depl.yml
+  - orders-postgres-depl.yml
+  - expiration-redis-depl.yml
+  - payments-mongo-depl.yml
+  - auth-depl.yml
+  - client-depl.yml
+  - tickets-depl.yml
+  - expiration-depl.yml
+  - payments-depl.yml
+  - orders-depl.yml

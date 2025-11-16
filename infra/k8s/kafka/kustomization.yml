@@ -1,0 +1,4 @@
+resources:
+  - kafka-depl.yml
+  - kafka-ui-depl.yml
+  - kafka-topics-job.yaml

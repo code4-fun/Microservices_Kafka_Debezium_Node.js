@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orders
+  template:
+    metadata:
+      labels:
+        app: orders
+    spec:
+      initContainers:
+        - name: migrate
+          image: sdsd123654/orders
+          command: [ "npx", "prisma", "migrate", "deploy" ]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: orders-postgres-credentials
+                  key: DATABASE_URL
+      containers:
+        - name: orders
+          image: sdsd123654/orders
+          env:
+            - name: KAFKA_CLIENT_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KAFKA_URL
+              value: 'kafka-srv:9092'
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: orders-postgres-credentials
+                  key: DATABASE_URL
+            - name: JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: JWT_KEY
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-srv
+spec:
+  selector:
+    app: orders
+  type: ClusterIP
+  ports:
+    - name: orders
+      protocol: TCP
+      port: 3000
+      targetPort: 3000

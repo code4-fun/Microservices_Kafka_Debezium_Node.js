@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-job
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: kafka-topics-job
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-kafka
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "⏳ Waiting for Kafka to be ready..."
+              until nc -z kafka-srv 9092; do
+                echo "Kafka is not ready yet..."
+                sleep 3
+              done
+              echo "Kafka is up!"
+      containers:
+        - name: create-topics
+          image: sdsd123654/kafka-topics-job
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KAFKA_URL
+              value: "kafka-srv:9092"

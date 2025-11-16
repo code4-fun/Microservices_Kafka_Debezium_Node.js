@@ -1,0 +1,10 @@
+{
+  "name": "kafka-topics-job",
+  "version": "1.0.0",
+  "main": "create-topics.js",
+  "license": "MIT",
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "@aitickets123654/common-kafka": "^1.0.27"
+  }
+}
