@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: payments-mongo-rs-init
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: mongo:6.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              echo "Waiting for MongoDB to be ready...";
+              until mongosh --host payments-mongo-0.payments-mongo-srv:27017 --eval "db.adminCommand('ping')" --quiet; do
+                echo "Waiting for MongoDB...";
+                sleep 2;
+              done;
+              echo "MongoDB is ready!";
+
+              echo "Initializing replica set..."
+              mongosh --host payments-mongo-0.payments-mongo-srv:27017 --eval '
+                try {
+                  rs.initiate({
+                    _id: "rs0",
+                    members: [
+                      { _id: 0, host: "payments-mongo-0.payments-mongo-srv:27017" }
+                    ]
+                  })
+                } catch (e) {
+                  print("Replica set already initialized or error: " + e)
+                }
+              '
+              
+              echo "Replica set initialization done."

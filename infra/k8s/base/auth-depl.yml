@@ -12,12 +12,45 @@ spec:
       labels:
         app: auth
     spec:
+      initContainers:
+        - name: auth-wait-for-mongo
+          image: mongo:6.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for MongoDB to be ready...";
+              until mongosh --host auth-mongo-0.auth-mongo-srv:27017 --eval "db.adminCommand('ping')" --quiet; do
+                echo "Waiting for MongoDB...";
+                sleep 2;
+              done;
+              echo "MongoDB is ready!";
+
+              echo "Waiting for replica set to be ready...";
+              until mongosh --host auth-mongo-0.auth-mongo-srv:27017 --eval "
+                try {
+                  var status = rs.status();
+                  if (status.ok && status.ok === 1) {
+                    quit(0);
+                  }
+                } catch (e) {
+                  print(\"Error:\", e.codeName);
+                  if (e.message.includes('no replset config has been received') || e.codeName === 'NotYetInitialized') {
+                    quit(1);
+                  }
+                  throw e;
+                }
+              " --quiet; do
+                echo "Replica set not ready yet, waiting...";
+                sleep 20;
+              done;
+              echo "Replica set is ready!";
       containers:
         - name: auth
           image: sdsd123654/auth
           env:
             - name: MONGO_URI
-              value: 'mongodb://auth-mongo-srv:27017/auth'
+              value: 'mongodb://auth-mongo-0.auth-mongo-srv:27017/auth?replicaSet=rs0'
             - name: JWT_KEY
               valueFrom:
                 secretKeyRef:

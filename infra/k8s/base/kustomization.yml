@@ -5,6 +5,9 @@ resources:
   - orders-postgres-depl.yml
   - expiration-redis-depl.yml
   - payments-mongo-depl.yml
+  - tickets-mongo-rs-job.yml
+  - payments-mongo-rs-job.yml
+  - auth-mongo-rs-job.yml
   - auth-depl.yml
   - client-depl.yml
   - tickets-depl.yml
