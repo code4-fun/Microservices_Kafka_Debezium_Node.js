@@ -5,6 +5,6 @@
   "license": "MIT",
   "dependencies": {
     "kafkajs": "^2.2.4",
-    "@aitickets123654/common-kafka": "^1.0.32"
+    "@aitickets123654/common-kafka": "^1.0.35"
   }
 }

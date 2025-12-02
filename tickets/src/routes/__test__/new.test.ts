@@ -2,7 +2,14 @@ import request from 'supertest';
 import { app } from '../../app';
 import { signin } from '../../test/test-utils';
 import { Ticket } from '../../models/ticket';
-import { kafkaClient } from '../../kafka-client';
+import { Outbox } from '../../models/outbox';
+
+const mockPublish = jest.fn().mockResolvedValue(undefined);
+jest.mock('../../events/publishers/ticket-created-publisher', () => ({
+  TicketCreatedPublisher: jest.fn().mockImplementation(() => ({
+    publish: mockPublish,
+  })),
+}));
 
 it('has a route handler listening to /api/tickets for post requests', async () => {
   const response = await request(app)
@@ -84,7 +91,7 @@ it('creates a ticket with valid inputs', async () => {
   expect(tickets[0].title).toEqual(title);
 });
 
-it('publishes an event', async () => {
+it('creates an outbox event for ticket creation', async () => {
   const title = 'sdf';
 
   await request(app)
@@ -96,5 +103,53 @@ it('publishes an event', async () => {
     })
     .expect(201);
 
-  expect(kafkaClient.producer.send).toHaveBeenCalled();
+  const tickets = await Ticket.find({ title });
+  expect(tickets).toHaveLength(1);
+
+  const ticket = tickets[0];
+  const outboxRecords = await Outbox.find({
+    aggregateId: ticket.id,
+    eventType: 'TicketCreated'
+  });
+  expect(outboxRecords).toHaveLength(1);
+});
+
+it('should publish TicketCreated events from outbox', async () => {
+  const ticket = Ticket.build({
+    title: 'test',
+    price: 100,
+    userId: 'user123',
+  });
+  await ticket.save();
+
+  await Outbox.create({
+    aggregateType: 'ticket',
+    aggregateId: ticket.id,
+    eventType: 'TicketCreated',
+    payload: {
+      id: ticket.id,
+      title: ticket.title,
+      price: ticket.price,
+      userId: ticket.userId,
+      version: ticket.version,
+    },
+    status: 'pending',
+  });
+
+  // запускаем worker один раз
+  const { runOutboxWorkerOnce } = require('../../events/workers/outbox-worker');
+  await runOutboxWorkerOnce();
+
+  // проверяем, что publisher был вызван с правильными данными
+  expect(mockPublish).toHaveBeenCalledWith({
+    id: ticket.id,
+    title: ticket.title,
+    price: ticket.price,
+    userId: ticket.userId,
+    version: ticket.version,
+  });
+
+  // проверяем, что статус outbox записи обновлен
+  const outboxRecord = await Outbox.findOne({ aggregateId: ticket.id });
+  expect(outboxRecord!.status).toBe('published');
 });

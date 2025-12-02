@@ -2,7 +2,8 @@ import express, { Request, Response } from 'express';
 import { requireAuth, validateRequest } from '@aitickets123654/common-kafka';
 import { body } from 'express-validator';
 import { Ticket } from '../models/ticket';
-import { TicketCreatedPublisher } from '../events/publishers/ticket-created-publisher';
+import mongoose from 'mongoose';
+import { createOutboxEvent } from '../events/workers/create-outbox-event';
 
 const router = express.Router();
 
@@ -15,24 +16,42 @@ router.post(
   ],
   validateRequest,
   async (req: Request, res: Response) => {
-    const { title, price } = req.body;
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    const ticket = Ticket.build({
-      title,
-      price,
-      userId: req.currentUser!.id,
-    });
-    await ticket.save();
+    try {
+      const { title, price } = req.body;
 
-    await new TicketCreatedPublisher().publish({
-      id: ticket.id,
-      title: ticket.title,
-      price: ticket.price,
-      userId: ticket.userId,
-      version: ticket.version,
-    });
+      const ticket = Ticket.build({
+        title,
+        price,
+        userId: req.currentUser!.id,
+      });
+      await ticket.save({ session });
 
-    return res.status(201).send(ticket);
+      await createOutboxEvent({
+        aggregateType: 'ticket',
+        aggregateId: ticket.id,
+        eventType: 'TicketCreated',
+        payload: {
+          id: ticket.id,
+          title: ticket.title,
+          price: ticket.price,
+          userId: ticket.userId,
+          version: ticket.version,
+        },
+        session,
+      });
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      return res.status(201).send(ticket);
+    } catch(err) {
+      await session.abortTransaction();
+      await session.endSession();
+      throw err;
+    }
   });
 
 export { router as createTicketRouter };

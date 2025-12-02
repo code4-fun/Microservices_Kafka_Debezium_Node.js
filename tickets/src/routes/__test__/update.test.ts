@@ -2,8 +2,15 @@ import request from 'supertest';
 import { app } from '../../app';
 import mongoose from 'mongoose';
 import { signin } from '../../test/test-utils';
-import { kafkaClient } from '../../kafka-client';
 import { Ticket, TicketDoc } from '../../models/ticket';
+import { Outbox } from "../../models/outbox";
+
+const mockPublish = jest.fn().mockResolvedValue(undefined);
+jest.mock('../../events/publishers/ticket-updated-publisher', () => ({
+  TicketUpdatedPublisher: jest.fn().mockImplementation(() => ({
+    publish: mockPublish,
+  })),
+}));
 
 it('returns a 404 if the provided id does not exist', async () => {
   const id = new mongoose.Types.ObjectId().toHexString();
@@ -102,29 +109,6 @@ it('updates the ticket provided valid inputs', async () => {
   expect(updatedTicket.body.price).toEqual(200);
 });
 
-it('publishes an event', async () => {
-  const cookie = signin();
-
-  const response = await request(app)
-    .post('/api/tickets')
-    .set('Cookie', cookie)
-    .send({
-      title: 'sdf',
-      price: 20,
-    });
-
-  await request(app)
-    .put(`/api/tickets/${response.body.id}`)
-    .set('Cookie', cookie)
-    .send({
-      title: 'new title',
-      price: 100,
-    })
-    .expect(200);
-
-  expect(kafkaClient.producer.send).toHaveBeenCalled();
-});
-
 it('rejects updates if the ticket is reserved', async () => {
   const cookie = signin();
 
@@ -148,4 +132,76 @@ it('rejects updates if the ticket is reserved', async () => {
       price: 100,
     })
     .expect(400);
+});
+
+it('creates an outbox event for ticket update', async () => {
+  const cookie = signin();
+
+  const response = await request(app)
+    .post('/api/tickets')
+    .set('Cookie', cookie)
+    .send({
+      title: 'sdf',
+      price: 20,
+    });
+
+  await request(app)
+    .put(`/api/tickets/${response.body.id}`)
+    .set('Cookie', cookie)
+    .send({
+      title: 'new title',
+      price: 100,
+    })
+    .expect(200);
+
+
+  const tickets = await Ticket.find({ title: 'new title' });
+  expect(tickets).toHaveLength(1);
+
+  const ticket = tickets[0];
+  const outboxRecords = await Outbox.find({
+    aggregateId: ticket.id,
+    eventType: 'TicketUpdated'
+  });
+  expect(outboxRecords).toHaveLength(1);
+});
+
+it('should publish TicketUpdated events from outbox', async () => {
+  const ticket = Ticket.build({
+    title: 'test',
+    price: 100,
+    userId: 'user123',
+  });
+  await ticket.save();
+
+  await Outbox.create({
+    aggregateType: 'ticket',
+    aggregateId: ticket.id,
+    eventType: 'TicketUpdated',
+    payload: {
+      id: ticket.id,
+      title: ticket.title,
+      price: ticket.price,
+      userId: ticket.userId,
+      version: ticket.version,
+    },
+    status: 'pending',
+  });
+
+  // запускаем worker один раз
+  const { runOutboxWorkerOnce } = require('../../events/workers/outbox-worker');
+  await runOutboxWorkerOnce();
+
+  // проверяем, что publisher был вызван с правильными данными
+  expect(mockPublish).toHaveBeenCalledWith({
+    id: ticket.id,
+    title: ticket.title,
+    price: ticket.price,
+    userId: ticket.userId,
+    version: ticket.version,
+  });
+
+  // проверяем, что статус outbox записи обновлен
+  const outboxRecord = await Outbox.findOne({ aggregateId: ticket.id });
+  expect(outboxRecord!.status).toBe('published');
 });

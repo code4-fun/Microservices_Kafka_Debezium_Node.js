@@ -1,4 +1,4 @@
-import { Ticket } from '../ticket';
+import { Ticket, TicketDoc } from '../ticket';
 
 it('implements optimistic concurrency control', async () => {
   const ticket = Ticket.build({
@@ -9,8 +9,8 @@ it('implements optimistic concurrency control', async () => {
 
   await ticket.save();
 
-  const firstInstance = await Ticket.findById(ticket.id) as Ticket;
-  const secondInstance = await Ticket.findById(ticket.id) as Ticket;
+  const firstInstance = await Ticket.findById(ticket.id) as TicketDoc;
+  const secondInstance = await Ticket.findById(ticket.id) as TicketDoc;
 
   firstInstance.set({ price: 10 });
   secondInstance.set({ price: 15 });
