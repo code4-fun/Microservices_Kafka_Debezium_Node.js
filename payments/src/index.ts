@@ -3,6 +3,7 @@ import { app } from './app';
 import { kafkaClient } from './kafka-client'
 import { OrderCancelledListener } from './events/listeners/order-cancelled-listener';
 import { OrderCreatedListener } from './events/listeners/order-created-listener';
+import { startOutboxWorker, stopOutboxWorker } from './events/workers/outbox-worker';
 
 const start = async () => {
   if (!process.env.JWT_KEY) {
@@ -28,10 +29,12 @@ const start = async () => {
     })
 
     process.on('SIGINT', async () => {
+      await stopOutboxWorker();
       await kafkaClient.disconnect();
       process.exit();
     });
     process.on('SIGTERM', async () => {
+      await stopOutboxWorker();
       await kafkaClient.disconnect();
       process.exit();
     });
@@ -41,6 +44,8 @@ const start = async () => {
 
     await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDb');
+
+    startOutboxWorker();
   } catch (err) {
     console.error(err);
   }

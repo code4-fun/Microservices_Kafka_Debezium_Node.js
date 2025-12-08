@@ -17,8 +17,6 @@ export class OrderCancelledListener extends Listener<OrderCancelledEvent> {
       throw new Error(`Invalid version: ${data.version}`);
     }
 
-    console.log('data!!!', data)
-
     const order = await Order.findOne({
       _id: data.id,
       version: version - 1,
