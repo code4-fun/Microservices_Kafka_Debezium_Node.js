@@ -37,9 +37,12 @@ export function fetchOrdersByUserIdWithTicket(userId: string): Promise<OrderWith
 }
 
 export async function createOrder(
-  data: Prisma.OrderUncheckedCreateInput
+  data: Prisma.OrderUncheckedCreateInput,
+  tx?: Prisma.TransactionClient
 ): Promise<OrderWithTicket> {
-  return db.order.create({
+  const client = tx ?? db;
+
+  return client.order.create({
     data: {
       ...data,
       status: data.status ?? OrderStatus.created,
@@ -58,8 +61,10 @@ export async function updateOrderWithVersion({
   id: string;
   version: number;
   data: Partial<Order>;
-}): Promise<OrderWithTicket | null> {
-  const updated = await db.order.updateMany({
+}, tx?: Prisma.TransactionClient ): Promise<OrderWithTicket | null> {
+  const client = tx ?? db;
+
+  const updated = await client.order.updateMany({
     where: { id, version },
     data: {
       ...data,
@@ -71,7 +76,7 @@ export async function updateOrderWithVersion({
     throw new Error('Optimistic concurrency conflict');
   }
 
-  return db.order.findUnique({
+  return client.order.findUnique({
     where: {id},
     include: {ticket: true},
   });

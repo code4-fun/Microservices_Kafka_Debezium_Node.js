@@ -10,6 +10,7 @@ spec:
       containers:
         - name: init
           image: mongo:6.0
+          imagePullPolicy: IfNotPresent
           command:
             - /bin/bash
             - -c

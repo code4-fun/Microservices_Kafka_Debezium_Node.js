@@ -37,5 +37,18 @@ model Order {
 
   ticket Ticket @relation(fields: [ticketId], references: [id])
 
-  @@unique([ticketId, status], name: "unique_active_order_per_ticket")
+  // removed
+  // @@unique([ticketId, status], name: "unique_active_order_per_ticket")
+  // added partial index instead (20251225131526_change_orders_add_index)
+}
+
+model Outbox {
+  id            String   @id @default(cuid())
+  aggregatetype String
+  aggregateid   String
+  type          String
+  payload       Json
+  createdAt     DateTime @default(now())
+
+  @@index([aggregatetype, aggregateid])
 }

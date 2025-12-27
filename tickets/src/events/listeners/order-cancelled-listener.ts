@@ -13,6 +13,7 @@ export class OrderCancelledListener extends Listener<OrderCancelledEvent> {
     const consumer = kafkaClient.createConsumer(orderCancelledGroupId);
     super(consumer);
   }
+
   async onMessage(data: OrderCancelledEvent['data'], msg: EachMessagePayload) {
     console.log(`OrderCancelledEvent received id=${data.id}, v=${data.version}`);
     const session = await mongoose.startSession();

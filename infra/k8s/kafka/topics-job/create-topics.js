@@ -1,5 +1,5 @@
 const { Kafka } = require('kafkajs');
-const { Topics } = require('@aitickets123654/common-kafka');
+const { Topics, RawTopics } = require('@aitickets123654/common-kafka');
 
 async function run() {
   const brokers = [process.env.KAFKA_URL || 'kafka-srv:9092'];
@@ -7,7 +7,7 @@ async function run() {
   const admin = kafka.admin();
   await admin.connect();
 
-  const allTopics = Object.values(Topics);
+  const allTopics = [...Object.values(Topics), ...Object.values(RawTopics)];
   const existing = await admin.listTopics();
 
   for (const topic of allTopics) {

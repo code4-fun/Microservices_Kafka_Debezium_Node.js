@@ -5,6 +5,7 @@ import { TicketCreatedListener } from './events/listeners/ticket-created-listene
 import { TicketUpdatedListener } from './events/listeners/ticket-updated-listener';
 import { ExpirationCompleteListener } from './events/listeners/expiration-complete-listener';
 import { PaymentCreatedListener } from './events/listeners/payment-created-listener';
+import { DebeziumOutboxWorker } from './events/workers/debezium-outbox-worker';
 
 const start = async () => {
   if (!process.env.JWT_KEY) {
@@ -45,6 +46,8 @@ const start = async () => {
 
     await db.$connect();
     console.log('Orders connected to PostgreSQL');
+
+    await new DebeziumOutboxWorker().start();
   } catch (err) {
     console.error(err);
   }

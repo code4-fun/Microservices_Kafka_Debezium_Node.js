@@ -1,10 +1,15 @@
-FROM node:alpine
+FROM node:20-slim
 
 WORKDIR /app
-COPY package.json .
-RUN npm install --only=prod
+
+ENV PRISMA_ENGINES_MIRROR="https://registry.npmmirror.com/-/binary/prisma"
+
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
 
 RUN npx prisma generate
 
-CMD ["npm", "start"]
+RUN npm prune --omit=dev
+
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]

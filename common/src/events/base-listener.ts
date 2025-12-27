@@ -16,6 +16,10 @@ export abstract class Listener<T extends Event> {
     this.consumer = consumer;
   }
 
+  protected async decode(value: Buffer): Promise<any> {
+    return registry.decode(value);
+  }
+
   async listen() {
     await this.consumer.connect();
     await this.consumer.subscribe({
@@ -48,7 +52,7 @@ export abstract class Listener<T extends Event> {
 
             let data;
             try {
-              data = await registry.decode(value);
+              data = await this.decode(value);
             } catch (err) {
               console.error(`Avro decode failed for ${topic}/${partition}@${offset}`, err);
               resolveOffset(offset);

@@ -7,7 +7,7 @@ import { DLQPublisher } from '../publishers/dlq-publisher'
 
 const BATCH_SIZE = Number(process.env.OUTBOX_BATCH_SIZE || 100);
 const CONCURRENCY = Number(process.env.OUTBOX_CONCURRENCY || 10);
-const MAX_ATTEMPTS = Number(process.env.OUTBOX_MAX_ATTEMPTS || 10);
+const MAX_ATTEMPTS = Number(process.env.OUTBOX_MAX_ATTEMPTS || 8);
 const BACKOFF_BASE_MS = Number(process.env.OUTBOX_BACKOFF_BASE_MS || 200);
 const POLL_INTERVAL_MS = Number(process.env.OUTBOX_POLL_INTERVAL_MS || 500);
 
@@ -128,7 +128,7 @@ export async function processEventTyped<T extends keyof EventMap>(event: OutboxD
   const publisher = new PublisherClass();
   await publisher.publish(event.payload);
 
-  // test fail publishing message
+  // for testing fail publishing message
   // throw new Error('Force DLQ for testing');
 
   await Outbox.updateOne(

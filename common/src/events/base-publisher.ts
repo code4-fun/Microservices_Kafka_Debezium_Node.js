@@ -1,4 +1,4 @@
-import { Producer } from 'kafkajs';
+import { Producer, IHeaders } from 'kafkajs';
 import { Topics } from './topics';
 import { registry } from './config/registry';
 import schemaIds from './config/schema-ids.json';
@@ -16,14 +16,19 @@ export abstract class Publisher<T extends Event> {
     this.producer = producer;
   }
 
-  async publish(data: T['data']): Promise<void> {
+  async publish(data: T['data'], headers?: IHeaders): Promise<void> {
     try {
       const schemaId = schemaIds[`${this.topic}-value`];
       const encoded = await registry.encode(schemaId, data);
 
       await this.producer.send({
         topic: this.topic,
-        messages: [{ value: encoded }],
+        messages: [
+          {
+            value: encoded,
+            headers,
+          }
+        ],
       });
 
       console.log(`Event published to topic '${this.topic}'`);

@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: orders-outbox-connector-job
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-connector
+          image: curlimages/curl:8.6.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DATABASE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: orders-postgres-credentials
+                  key: POSTGRES_USER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orders-postgres-credentials
+                  key: POSTGRES_PASSWORD
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for Kafka Connect..."
+              until curl -s http://kafka-connect-srv:8083/connectors > /dev/null; do
+                echo "Waiting for Kafka Connect..."
+                sleep 5
+              done
+              
+              echo "Creating Debezium Outbox Connector..."
+
+              curl -f -X POST \
+                -H "Content-Type: application/json" \
+                --data '{
+                  "name": "orders-outbox-connector",
+                  "config": {
+                    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+                    "plugin.name": "pgoutput",
+                    "database.hostname": "orders-postgres-srv",
+                    "database.port": "5432",
+                    "database.user": "'"${DATABASE_USER}"'",
+                    "database.password": "'"${DATABASE_PASSWORD}"'",
+                    "database.dbname": "orders",
+                    "slot.name": "orders_slot",
+                    "topic.prefix": "orders",
+                    "schema.include.list": "public",
+                    "table.include.list": "public.outbox",
+              
+                    "transforms": "outbox",
+                    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+                    "transforms.outbox.route.by.field": "type",
+                    "transforms.outbox.route.topic.replacement": "${routedByValue}.raw",
+                    "table.field.event.timestamp": "createdAt",
+              
+                    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+                    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+                    "value.converter.schemas.enable": "false"
+                  }
+                }' \
+                http://kafka-connect-srv:8083/connectors
+              
+              echo "Connector created"

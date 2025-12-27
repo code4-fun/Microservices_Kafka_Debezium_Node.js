@@ -15,6 +15,7 @@ spec:
       containers:
         - name: expiration
           image: sdsd123654/expiration
+          imagePullPolicy: IfNotPresent
           env:
             - name: KAFKA_CLIENT_ID
               valueFrom:

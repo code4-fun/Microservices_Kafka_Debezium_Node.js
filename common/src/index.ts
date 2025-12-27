@@ -11,8 +11,11 @@ export * from './middlewares/require-auth';
 export * from './middlewares/validate-request';
 
 export * from './events/base-listener';
+export * from './events/base-raw-listener';
 export * from './events/base-publisher';
+export * from './events/dlq-publisher';
 export * from './events/topics';
+export * from './events/raw-topics';
 export * from './events/ticket-created-event';
 export * from './events/ticket-updated-event';
 export { Orders } from './events/TSTypes/orders.order.created.v1-value';

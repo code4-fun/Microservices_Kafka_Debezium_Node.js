@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import {
+  Topics,
   requireAuth,
   validateRequest,
   NotFoundError,
@@ -8,8 +9,9 @@ import {
 import { body } from 'express-validator';
 import { createOrder, isTicketReserved } from '../services/orders.service';
 import { fetchTicketById } from '../services/tickets.service';
-import { OrderCreatedPublisher } from '../events/publishers/order-created-publisher';
 import { OrderStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { db } from '../db';
 
 const router = express.Router();
 
@@ -42,27 +44,38 @@ router.post(
     const expiration = new Date();
     expiration.setSeconds(expiration.getSeconds() + EXPIRATION_WINDOW_SECONDS);
 
-    const order = await createOrder({
-      userId: req.currentUser!.id,
-      status: OrderStatus.created,
-      expiresAt: expiration,
-      ticketId: ticket.id,
-      version: 0,
+    const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+      const order = await createOrder({
+        userId: req.currentUser!.id,
+        status: OrderStatus.created,
+        expiresAt: expiration,
+        ticketId: ticket.id,
+        version: 0,
+      }, tx);
+
+      await tx.outbox.create({
+        data: {
+          aggregatetype: 'order',
+          aggregateid: order.id,
+          type: Topics.OrderCreated,
+          payload: {
+            id: order.id,
+            status: order.status,
+            userId: order.userId,
+            expiresAt: order.expiresAt.toISOString(),
+            ticket: {
+              id: ticket.id,
+              price: ticket.price,
+            },
+            version: order.version,
+          },
+        },
+      });
+
+      return order;
     });
 
-    await new OrderCreatedPublisher().publish({
-      id: order.id,
-      status: order.status,
-      userId: order.userId,
-      expiresAt: order.expiresAt.toISOString(),
-      ticket: {
-        id: ticket.id,
-        price: ticket.price,
-      },
-      version: order.version,
-    });
-
-    res.status(201).send(order);
+    res.status(201).send(result);
 });
 
 export { router as newOrderRouter };

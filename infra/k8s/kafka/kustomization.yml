@@ -1,5 +1,7 @@
 resources:
   - kafka-depl.yml
   - kafka-ui-depl.yml
-  - kafka-topics-job.yaml
+  - kafka-topics-job.yml
   - schema-registry-depl.yml
+  - orders-outbox-connector-job.yml
+  - kafka-connect-depl.yml

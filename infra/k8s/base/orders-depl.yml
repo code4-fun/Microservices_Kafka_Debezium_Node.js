@@ -15,6 +15,7 @@ spec:
       initContainers:
         - name: migrate
           image: sdsd123654/orders
+          imagePullPolicy: IfNotPresent
           command: [ "npx", "prisma", "migrate", "deploy" ]
           env:
             - name: DATABASE_URL
@@ -25,6 +26,7 @@ spec:
       containers:
         - name: orders
           image: sdsd123654/orders
+          imagePullPolicy: IfNotPresent
           env:
             - name: KAFKA_CLIENT_ID
               valueFrom:
