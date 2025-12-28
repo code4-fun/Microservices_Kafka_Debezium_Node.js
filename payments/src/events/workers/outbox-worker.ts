@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
 import { Outbox, OutboxDoc } from '../../models/outbox';
-import { EventMap, Topics } from '@aitickets123654/common-kafka';
+import { EventMap, DLQTopics, DLQPublisher } from '@aitickets123654/common-kafka';
 import { PaymentCreatedPublisher } from '../publishers/payment-created-publisher';
-import { DLQPublisher } from '../publishers/dlq-publisher'
+import { kafkaClient } from '../../kafka-client';
 
 const BATCH_SIZE = Number(process.env.OUTBOX_BATCH_SIZE || 100);
 const CONCURRENCY = Number(process.env.OUTBOX_CONCURRENCY || 10);
-const MAX_ATTEMPTS = Number(process.env.OUTBOX_MAX_ATTEMPTS || 10);
+const MAX_ATTEMPTS = Number(process.env.OUTBOX_MAX_ATTEMPTS || 8);
 const BACKOFF_BASE_MS = Number(process.env.OUTBOX_BACKOFF_BASE_MS || 200);
 const POLL_INTERVAL_MS = Number(process.env.OUTBOX_POLL_INTERVAL_MS || 500);
 
@@ -74,22 +74,22 @@ async function handleFailure(event: OutboxDoc<keyof EventMap>, err: any) {
 
   // if moved to failed -> send to DLQ topic and copy to DLQ collection for later inspection
   if (nextAttempts >= MAX_ATTEMPTS) {
-    function isTopicKey(key: string): key is keyof typeof Topics {
-      return key in Topics;
+    function isTopicKey(key: string): key is keyof typeof DLQTopics {
+      return key in DLQTopics;
     }
 
-    let dlqTopic: Topics;
+    let dlqTopic: DLQTopics;
     let dlqEventType = `${event.eventType}DLQ`
 
     if (isTopicKey(dlqEventType)) {
-      dlqTopic = Topics[dlqEventType];
+      dlqTopic = DLQTopics[dlqEventType];
     } else {
       throw Error('No DLQ topic found');
     }
 
-    const dlqPublisher = new DLQPublisher<typeof event.payload>(dlqTopic);
+    const dlqPublisher = new DLQPublisher(dlqTopic, kafkaClient.producer);
     await dlqPublisher.publish({
-      ...event.payload,
+      payload: event.payload,
       error: String(err?.message || err),
       attempts: nextAttempts,
       failedAt: new Date().toISOString(),
@@ -124,10 +124,11 @@ export async function processEventTyped<T extends keyof EventMap>(event: OutboxD
   if (!PublisherClass) throw new Error(`Unknown eventType: ${eventType}`);
 
   const publisher = new PublisherClass();
-  await publisher.publish(event.payload);
 
-  // test fail publishing message
+  // for testing fail publishing message
   // throw new Error('Force DLQ for testing');
+
+  await publisher.publish(event.payload);
 
   await Outbox.updateOne(
     { _id: event._id },

@@ -21,7 +21,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aitickets123654/common-kafka": "^1.0.43",
+    "@aitickets123654/common-kafka": "^1.0.47",
     "@types/bull": "^3.15.9",
     "bull": "^4.16.5",
     "kafkajs": "^2.2.4",

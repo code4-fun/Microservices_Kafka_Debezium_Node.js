@@ -1,14 +1,8 @@
 {
-  "tickets.ticket.updated.v1.DLQ-value": 1,
-  "tickets.ticket.updated.v1-value": 2,
-  "tickets.ticket.created.v1.DLQ-value": 3,
-  "tickets.ticket.created.v1-value": 4,
-  "payments.payment.created.v1.DLQ-value": 5,
-  "payments.payment.created.v1-value": 6,
-  "orders.order.created.v1.DLQ-value": 7,
-  "orders.order.created.v1-value": 8,
-  "orders.order.cancelled.v1.DLQ-value": 9,
-  "orders.order.cancelled.v1-value": 10,
-  "expiration.expiration.complete.v1.DLQ-value": 11,
-  "expiration.expiration.complete.v1-value": 12
+  "tickets.ticket.updated.v1-value": 1,
+  "tickets.ticket.created.v1-value": 2,
+  "payments.payment.created.v1-value": 3,
+  "orders.order.created.v1-value": 4,
+  "orders.order.cancelled.v1-value": 5,
+  "expiration.expiration.complete.v1-value": 6
 }
