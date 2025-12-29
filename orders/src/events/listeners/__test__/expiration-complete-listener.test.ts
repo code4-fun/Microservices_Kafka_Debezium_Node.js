@@ -1,7 +1,6 @@
 import { ExpirationCompleteEvent } from '@aitickets123654/common-kafka';
 import { EachMessagePayload } from 'kafkajs';
 import { OrderStatus } from '@prisma/client';
-import { kafkaClient } from '../../../kafka-client';
 
 let db: any;
 let ExpirationCompleteListener: any;
@@ -58,16 +57,19 @@ it('updates the order status to cancelled', async () => {
   expect(updatedOrder!.status).toEqual(OrderStatus.cancelled);
 });
 
-it('emit an OrderCancelled event', async () => {
+it('creates an outbox record when order cancelled', async () => {
   const { listener, order, data, payload } = await setup();
 
   await listener.onMessage(data, payload);
 
-  expect(kafkaClient.producer.send).toHaveBeenCalled();
+  const outbox = await db.outbox.findMany({
+    where: {
+      aggregateid: order.id,
+      type: {
+        contains: 'orders.order.cancelled',
+      },
+    },
+  });
 
-  const eventData = JSON.parse(
-    (kafkaClient.producer.send as jest.Mock).mock.calls[0][0]['messages'][0]['value']
-  );
-
-  expect(order.id).toEqual(eventData.id);
+  expect(outbox).toHaveLength(1);
 });

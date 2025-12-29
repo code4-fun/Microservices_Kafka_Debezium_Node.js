@@ -99,10 +99,54 @@
 
 Для тестов в сервисе **orders** используется **Testcontainers**.
 
+## Запуск проекта
 
+Локально проект можно запустить выполнив следующие шаги
 
+```shell
+# Сборка и пуш Docker-образов
 
+docker build -t dockerhub_username/auth:latest auth
 
+docker build -t dockerhub_username/tickets:latest tickets
 
+docker build -t dockerhub_username/expiration:latest expiration
+
+docker build -t dockerhub_username/payments:latest payments
+
+docker build -t dockerhub_username/orders:latest orders
+
+docker build -t dockerhub_username/client:latest client
+
+docker build -t dockerhub_username/kafka-topics-job:latest infra/k8s/kafka/topics-job
+
+docker build -t dockerhub_username/kafka-connect-debezium:latest infra/k8s/kafka/kafka-connect
+
+# Применение ingress-nginx манифеста
+
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+
+# Создание секретов
+
+kubectl create secret generic jwt-secret --from-literal=JWT_KEY=asdf --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic orders-postgres-credentials \
+--from-literal=POSTGRES_USER=postgres \
+--from-literal=POSTGRES_PASSWORD=postgres \
+--from-literal=DATABASE_URL="postgresql://postgres:postgres@orders-postgres-srv:5432/orders?schema=public" \
+--dry-run=client -o yaml | kubectl apply -f -
+
+echo "Creating Stripe secret..."
+kubectl create secret generic stripe-secret \
+--from-literal STRIPE_KEY=sk_test_xxx \
+--dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret tls ticketing-tls --cert=infra/certs/ticketing.dev.pem --key=infra/certs/ticketing.dev-key.pem --dry-run=client -o yaml | kubectl apply -f -
+
+#Starting Skaffold
+
+skaffold dev
+
+```
 
 

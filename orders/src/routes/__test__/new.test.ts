@@ -64,7 +64,7 @@ it('reserves a ticket', async () => {
     .expect(201);
 });
 
-it('emits an order created event', async () => {
+it('creates an outbox record when order created', async () => {
   const ticket = await db.ticket.create({
     data: {
       title: 'concert',
@@ -73,11 +73,20 @@ it('emits an order created event', async () => {
     }
   });
 
-  await request(app)
+  const { body: order } = await request(app)
     .post('/api/orders')
     .set('Cookie', signin())
     .send({ ticketId: ticket.id })
     .expect(201);
 
-  expect(kafkaClient.producer.send).toHaveBeenCalled();
+  const outbox = await db.outbox.findMany({
+    where: {
+      aggregateid: order.id,
+      type: {
+        contains: 'orders.order.created',
+      },
+    },
+  });
+
+  expect(outbox).toHaveLength(1);
 });

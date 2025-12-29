@@ -43,7 +43,7 @@ it('marks an order as cancelled', async () => {
   expect(updatedOrder!.status).toEqual(OrderStatus.cancelled);
 });
 
-it('emits an order cancelled event', async () => {
+it('creates an outbox record when order cancelled', async () => {
   const ticket = await db.ticket.create({
     data: {
       title: 'concert',
@@ -53,7 +53,6 @@ it('emits an order cancelled event', async () => {
   });
 
   const user = signin();
-
   const { body: order } = await request(app)
     .post('/api/orders')
     .set('Cookie', user)
@@ -66,5 +65,14 @@ it('emits an order cancelled event', async () => {
     .send()
     .expect(204);
 
-  expect(kafkaClient.producer.send).toHaveBeenCalled();
+  const outbox = await db.outbox.findMany({
+    where: {
+      aggregateid: order.id,
+      type: {
+        contains: 'orders.order.cancelled',
+      },
+    },
+  });
+
+  expect(outbox).toHaveLength(1);
 });
