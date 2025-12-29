@@ -143,9 +143,15 @@ kubectl create secret generic stripe-secret \
 
 kubectl create secret tls ticketing-tls --cert=infra/certs/ticketing.dev.pem --key=infra/certs/ticketing.dev-key.pem --dry-run=client -o yaml | kubectl apply -f -
 
-#Starting Skaffold
+# Starting Skaffold
 
 skaffold dev
+
+# register schemas
+
+kubectl port-forward service/schema-registry-srv 8081:8081
+
+node ./schemas/register.js
 
 ```
 
