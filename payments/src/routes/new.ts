@@ -12,6 +12,7 @@ import { Order, OrderDoc } from '../models/order';
 import { Payment } from '../models/payment';
 import { Outbox } from '../models/outbox';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 
 const router = express.Router();
 
@@ -53,6 +54,7 @@ router.post(
 
       await Outbox.build(
         {
+          eventId: randomUUID(),
           aggregateType: 'payment',
           aggregateId: payment.id,
           eventType: 'PaymentCreated',

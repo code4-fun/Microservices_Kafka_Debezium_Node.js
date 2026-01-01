@@ -12,6 +12,7 @@ import { fetchTicketById } from '../services/tickets.service';
 import { OrderStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { db } from '../db';
+import { randomUUID } from 'crypto';
 
 const router = express.Router();
 
@@ -55,6 +56,7 @@ router.post(
 
       await tx.outbox.create({
         data: {
+          eventId: randomUUID(),
           aggregatetype: 'order',
           aggregateid: order.id,
           type: Topics.OrderCreated,

@@ -1,10 +1,11 @@
 import mongoose from 'mongoose';
-import { OrderCreatedEvent } from '@aitickets123654/common-kafka';
+import { OrderCreatedEvent, Topics } from '@aitickets123654/common-kafka';
 import { Ticket, TicketDoc } from '../../../models/ticket';
 import { EachMessagePayload } from 'kafkajs';
 import { OrderCreatedListener } from '../order-created-listener';
 import { Outbox } from '../../../models/outbox';
 import { TicketUpdatedPublisher } from '../../publishers/ticket-updated-publisher';
+import { ProcessedEvent } from '../../../models/processed-event';
 
 jest.mock('../../publishers/ticket-updated-publisher');
 
@@ -31,7 +32,13 @@ const setup = async () => {
   };
 
   // @ts-ignore
-  const payload: EachMessagePayload = null;
+  const payload = {
+    message: {
+      headers: {
+        eventId: Buffer.from('test-event-id'),
+      },
+    },
+  } as EachMessagePayload;
 
   return { listener, ticket, data, payload };
 };
@@ -89,26 +96,25 @@ it('should create outbox event when ticket is updated', async () => {
   });
 });
 
-it('should rollback transaction on error', async () => {
-  const { payload, data, listener } = await setup();
+it('does not persist changes if transaction fails', async () => {
+  const { payload, data, listener, ticket } = await setup();
 
-  // Mock ошибки при сохранении билета
-  const saveSpy = jest.spyOn(Ticket.prototype, 'save');
-  saveSpy.mockRejectedValueOnce(new Error('Save failed'));
+  // ломаем сохранение
+  jest
+    .spyOn(Ticket.prototype, 'save')
+    .mockRejectedValueOnce(new Error('Save failed'));
 
-  const startSessionSpy = jest.spyOn(mongoose, 'startSession');
-  const sessionMock = {
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    abortTransaction: jest.fn(),
-    endSession: jest.fn(),
-  };
-  startSessionSpy.mockResolvedValue(sessionMock as any);
+  await expect(
+    listener.onMessage(data, payload)
+  ).rejects.toThrow('Save failed');
 
-  await expect(listener.onMessage(data, payload)).rejects.toThrow('Save failed');
+  // ticket НЕ должен быть зарезервирован
+  const freshTicket = await Ticket.findById(ticket.id);
+  expect(freshTicket!.orderId).toBeUndefined();
 
-  expect(sessionMock.abortTransaction).toHaveBeenCalled();
-  expect(sessionMock.commitTransaction).not.toHaveBeenCalled();
+  // outbox НЕ должен быть создан
+  const outboxEvents = await Outbox.find({});
+  expect(outboxEvents).toHaveLength(0);
 });
 
 it('should increment ticket version after update', async () => {
@@ -121,8 +127,8 @@ it('should increment ticket version after update', async () => {
   expect(updatedTicket.version).toBe(initialVersion + 1);
 });
 
-// Тест на корректность вызова TicketUpdatedPublisher через outbox worker
-it('should trigger TicketUpdatedPublisher when outbox worker processes the event', async () => {
+// Тест на корректность вызова TicketCreatedPublisher через outbox worker
+it('should trigger TicketCreatedPublisher when outbox worker processes the event', async () => {
   const { payload, data, ticket, listener } = await setup();
 
   await listener.onMessage(data, payload);
@@ -152,6 +158,25 @@ it('should trigger TicketUpdatedPublisher when outbox worker processes the event
       id: ticket.id,
       orderId: data.id,
       version: ticket.version + 1,
-    })
+    }),
+    expect.any(Object)
   );
 });
+
+it('listener is idempotent for duplicate event', async () => {
+  const { listener, ticket, data, payload } = await setup();
+
+  await listener.onMessage(data, payload);
+  await listener.onMessage(data, payload);
+
+  const updatedTicket = await Ticket.findById(ticket.id) as TicketDoc;
+
+  expect(updatedTicket!.orderId).toEqual(data.id);
+
+  const events = await ProcessedEvent.find({
+    topic: Topics.OrderCreated,
+  });
+
+  expect(events).toHaveLength(1);
+});
+

@@ -2,9 +2,11 @@ import { Topics, OrderCreatedEvent, Listener } from '@aitickets123654/common-kaf
 import { EachMessagePayload } from 'kafkajs';
 import { kafkaClient } from '../../kafka-client'
 import { orderCreatedGroupId } from './group-id';
-import { Ticket, TicketDoc } from '../../models/ticket';
+import { Ticket } from '../../models/ticket';
 import mongoose from 'mongoose';
 import { Outbox } from '../../models/outbox';
+import { randomUUID } from 'crypto';
+import { ProcessedEvent } from '../../models/processed-event';
 
 export class OrderCreatedListener extends Listener<OrderCreatedEvent> {
   topic: Topics.OrderCreated = Topics.OrderCreated;
@@ -16,41 +18,60 @@ export class OrderCreatedListener extends Listener<OrderCreatedEvent> {
 
   async onMessage(data: OrderCreatedEvent['data'], payload: EachMessagePayload) {
     console.log(`OrderCreatedEvent received id=${data.id}, v=${data.version}`);
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
-    const ticket = await Ticket.findById(data.ticket.id) as TicketDoc;
-
-    if (!ticket) {
-      throw new Error('Ticket not found');
+    const eventId = payload.message.headers?.eventId?.toString();
+    if (!eventId) {
+      throw new Error('eventId is required');
     }
 
+    const session = await mongoose.startSession();
+
     try {
-      ticket.set({ orderId: data.id });
-      await ticket.save({ session });
+      await session.withTransaction(async () => {
+        await ProcessedEvent.build(
+          {
+            eventId,
+            topic: Topics.OrderCreated
+          }
+        ).save({ session });
 
-      await Outbox.build(
-        {
-          aggregateType: 'ticket',
-          aggregateId: ticket.id,
-          eventType: 'TicketUpdated',
-          payload: {
-            id: ticket.id,
-            title: ticket.title,
-            price: ticket.price,
-            userId: ticket.userId,
-            orderId: ticket.orderId || null,
-            version: ticket.version,
+        const ticket = await Ticket.findById(data.ticket.id).session(session);
+        if (!ticket) {
+          throw new Error('Ticket not found');
+        }
+
+        if (ticket.orderId === data.id) {
+          return;  // additional idempotency
+        }
+
+        ticket.set({ orderId: data.id });
+        await ticket.save({ session });
+
+        await Outbox.build(
+          {
+            eventId: randomUUID(),
+            aggregateType: 'ticket',
+            aggregateId: ticket.id,
+            eventType: 'TicketUpdated',
+            payload: {
+              id: ticket.id,
+              title: ticket.title,
+              price: ticket.price,
+              userId: ticket.userId,
+              orderId: ticket.orderId || null,
+              version: ticket.version,
+            },
           },
-        },
-      ).save({ session });
-
-      await session.commitTransaction();
-      await session.endSession();
-    } catch (err) {
-      await session.abortTransaction();
-      await session.endSession();
+        ).save({ session });
+      });
+    } catch (err: any) {
+      // duplicate event → safe skip
+      if (err.code === 11000) {
+        return;
+      }
       throw err;
+    } finally {
+      await session.endSession();
     }
   }
 }

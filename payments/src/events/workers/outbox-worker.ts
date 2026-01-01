@@ -3,6 +3,7 @@ import { Outbox, OutboxDoc } from '../../models/outbox';
 import { EventMap, DLQTopics, DLQPublisher } from '@aitickets123654/common-kafka';
 import { PaymentCreatedPublisher } from '../publishers/payment-created-publisher';
 import { kafkaClient } from '../../kafka-client';
+import { IHeaders } from 'kafkajs';
 
 const BATCH_SIZE = Number(process.env.OUTBOX_BATCH_SIZE || 100);
 const CONCURRENCY = Number(process.env.OUTBOX_CONCURRENCY || 10);
@@ -12,7 +13,7 @@ const POLL_INTERVAL_MS = Number(process.env.OUTBOX_POLL_INTERVAL_MS || 500);
 
 export const publishers: Partial<{
   [K in keyof EventMap]: new () => {
-    publish(data: EventMap[K]["data"]): Promise<void>;
+    publish(data: EventMap[K]["data"], headers?: IHeaders): Promise<void>;
   };
 }> = {
   PaymentCreated: PaymentCreatedPublisher
@@ -118,9 +119,7 @@ async function handleFailure(event: OutboxDoc<keyof EventMap>, err: any) {
 export async function processEventTyped<T extends keyof EventMap>(event: OutboxDoc<T>) {
   const eventType = event.eventType;
 
-  const PublisherClass = publishers[eventType] as
-    | (new () => { publish(data: EventMap[T]['data']): Promise<void> })
-    | undefined;
+  const PublisherClass = publishers[eventType];
   if (!PublisherClass) throw new Error(`Unknown eventType: ${eventType}`);
 
   const publisher = new PublisherClass();
@@ -128,7 +127,9 @@ export async function processEventTyped<T extends keyof EventMap>(event: OutboxD
   // for testing fail publishing message
   // throw new Error('Force DLQ for testing');
 
-  await publisher.publish(event.payload);
+  await publisher.publish(event.payload, {
+    eventId: Buffer.from(String(event.eventId)),
+  });
 
   await Outbox.updateOne(
     { _id: event._id },

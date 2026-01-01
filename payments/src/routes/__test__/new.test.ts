@@ -157,6 +157,7 @@ it('should publish PaymentCreated events from outbox', async () => {
   expect(payment).not.toBeNull();
 
   await Outbox.create({
+    eventId: 'event_id',
     aggregateType: 'payment',
     aggregateId: payment.id,
     eventType: 'PaymentCreated',
@@ -173,11 +174,14 @@ it('should publish PaymentCreated events from outbox', async () => {
   await runOutboxWorkerOnce();
 
   // проверяем, что publisher был вызван с правильными данными
-  expect(mockPublish).toHaveBeenCalledWith({
-    id: payment.id,
-    orderId: order.id,
-    stripeId: payment.stripeId,
-  });
+  expect(mockPublish).toHaveBeenCalledWith(
+    {
+      id: payment.id,
+      orderId: order.id,
+      stripeId: payment.stripeId,
+    },
+    expect.any(Object)
+  );
 
   // проверяем, что статус outbox записи обновлен
   const outboxRecord = await Outbox.findOne({ aggregateId: payment.id });

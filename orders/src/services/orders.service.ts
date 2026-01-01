@@ -1,6 +1,7 @@
 import { db } from '../db';
 import { Order, OrderStatus, Prisma } from '@prisma/client';
 import { OrderWithTicket } from '../models/order.type';
+import { Topics } from '@aitickets123654/common-kafka';
 
 export async function isTicketReserved(ticketId: string): Promise<boolean> {
   const existingOrder = await db.order.findFirst({
@@ -79,5 +80,38 @@ export async function updateOrderWithVersion({
   return client.order.findUnique({
     where: {id},
     include: {ticket: true},
+  });
+}
+
+export async function updateOrderFromEvent(
+eventId: string,
+{
+  id,
+  version,
+  data,
+}: {
+  id: string;
+  version: number;
+  data: Partial<Order>;
+}): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.processedEvent.create({
+      data: {
+        eventId,
+        topic: Topics.PaymentCreated,
+      },
+    });
+
+    const result = await tx.order.updateMany({
+      where: { id, version },
+      data: {
+        ...data,
+        version: { increment: 1 },
+      },
+    });
+
+    if (result.count === 0) {
+      throw new Error(`Out-of-order or missing version id=${id}, v=${version}`);
+    }
   });
 }

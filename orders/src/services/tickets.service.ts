@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { Prisma, Ticket } from '@prisma/client';
+import { Topics } from '@aitickets123654/common-kafka';
 
 export function fetchTicketById(id: string): Promise<Ticket | null> {
   return db.ticket.findUnique({
@@ -20,6 +21,24 @@ export async function createTicket(
 
   return db.ticket.create({
     data,
+  });
+}
+
+export async function createTicketFromEvent(
+  eventId: string,
+  data: Prisma.TicketUncheckedCreateInput
+) {
+  return db.$transaction(async (tx) => {
+    await tx.processedEvent.create({
+      data: {
+        eventId,
+        topic: Topics.TicketCreated,
+      },
+    });
+
+    await tx.ticket.create({
+      data,
+    });
   });
 }
 
@@ -44,4 +63,41 @@ export async function updateTicketByVersion({ id, version, data }: {
   }
 
   return db.ticket.findUnique({ where: { id } });
+}
+
+export async function updateTicketFromEvent(
+  eventId: string,
+  {
+    id,
+    version,
+    data,
+  }: {
+    id: string;
+    version: number;
+    data: Prisma.TicketUncheckedUpdateInput;
+  }
+): Promise<void> {
+  await db.$transaction(async (tx) => {
+    await tx.processedEvent.create({
+      data: {
+        eventId,
+        topic: Topics.TicketUpdated,
+      },
+    });
+
+    const result = await tx.ticket.updateMany({
+      where: {
+        id,
+        version: version - 1,
+      },
+      data: {
+        ...data,
+        version,
+      },
+    });
+
+    if (result.count === 0) {
+      throw new Error(`Out-of-order or missing version id=${id}, v=${version}`);
+    }
+  });
 }

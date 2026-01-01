@@ -10,6 +10,7 @@ import { Ticket, TicketDoc } from '../models/ticket';
 import { body } from 'express-validator';
 import mongoose from 'mongoose';
 import { Outbox } from '../models/outbox';
+import { randomUUID } from 'crypto';
 
 const router = express.Router();
 
@@ -48,6 +49,7 @@ router.put(
 
       await Outbox.build(
         {
+          eventId: randomUUID(),
           aggregateType: 'ticket',
           aggregateId: ticket.id,
           eventType: 'TicketUpdated',

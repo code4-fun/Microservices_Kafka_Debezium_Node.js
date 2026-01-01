@@ -2,7 +2,7 @@ import { Topics, TicketUpdatedEvent, Listener } from '@aitickets123654/common-ka
 import { EachMessagePayload } from 'kafkajs';
 import { kafkaClient } from '../../kafka-client'
 import { ticketUpdatedGroupId } from './group-id';
-import { updateTicketByVersion } from '../../services/tickets.service';
+import { updateTicketFromEvent } from '../../services/tickets.service';
 
 export class TicketUpdatedListener extends Listener<TicketUpdatedEvent> {
   topic: Topics.TicketUpdated = Topics.TicketUpdated;
@@ -16,14 +16,23 @@ export class TicketUpdatedListener extends Listener<TicketUpdatedEvent> {
     const { id, title, price, version } = data;
     console.log(`TicketUpdatedEvent received id=${id}, v=${version}`);
 
-    const updated = await updateTicketByVersion({
-      id,
-      version,
-      data: { title, price }
-    });
+    const eventId = payload.message.headers?.eventId?.toString();
+    if (!eventId) {
+      throw new Error('eventId is required for idempotent processing');
+    }
 
-    if (!updated) {
-      throw new Error(`[orders] out-of-order update, id=${id}, v=${version}`);
+    try {
+      await updateTicketFromEvent(eventId, {
+        id,
+        version,
+        data: { title, price },
+      });
+    } catch (err: any) {
+      if (err.code === 'P2002') {
+        // P2002 — Unique constraint failed -> событие уже обработано
+        return;
+      }
+      throw err;
     }
   }
 }

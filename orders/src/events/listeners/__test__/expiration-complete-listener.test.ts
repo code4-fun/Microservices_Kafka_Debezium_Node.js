@@ -1,4 +1,4 @@
-import { ExpirationCompleteEvent } from '@aitickets123654/common-kafka';
+import { ExpirationCompleteEvent, Topics } from '@aitickets123654/common-kafka';
 import { EachMessagePayload } from 'kafkajs';
 import { OrderStatus } from '@prisma/client';
 
@@ -40,7 +40,13 @@ const setup = async () => {
   };
 
   // @ts-ignore
-  const payload: EachMessagePayload = null;
+  const payload = {
+    message: {
+      headers: {
+        eventId: Buffer.from('test-event-id'),
+      },
+    },
+  } as EachMessagePayload;
 
   return { payload, data, ticket, listener, order };
 };
@@ -72,4 +78,25 @@ it('creates an outbox record when order cancelled', async () => {
   });
 
   expect(outbox).toHaveLength(1);
+});
+
+it('listener is idempotent for duplicate event', async () => {
+  const { listener, order, data, payload } = await setup();
+
+  await listener.onMessage(data, payload);
+  await listener.onMessage(data, payload);
+
+  const updatedOrder = await db.order.findUnique({
+    where: { id: order.id }
+  });
+
+  expect(updatedOrder!.status).toEqual(OrderStatus.cancelled);
+
+  const events = await db.processedEvent.findMany({
+    where: {
+      topic: Topics.ExpirationComplete,
+    },
+  });
+
+  expect(events).toHaveLength(1);
 });

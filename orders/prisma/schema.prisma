@@ -44,6 +44,7 @@ model Order {
 
 model Outbox {
   id            String   @id @default(cuid())
+  eventId       String
   aggregatetype String
   aggregateid   String
   type          String
@@ -51,4 +52,10 @@ model Outbox {
   createdAt     DateTime @default(now())
 
   @@index([aggregatetype, aggregateid])
+}
+
+model ProcessedEvent {
+  eventId   String   @id
+  topic     String
+  createdAt DateTime @default(now())
 }

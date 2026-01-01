@@ -24,6 +24,7 @@ export class OrderCreatedListener extends Listener<OrderCreatedEvent> {
       },
       {
         delay,
+        jobId: data.id,  // for idempotency
       }
     );
   }

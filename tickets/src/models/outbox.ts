@@ -2,6 +2,7 @@ import { model, Schema, Document, Model } from 'mongoose';
 import { EventMap } from '@aitickets123654/common-kafka';
 
 export interface OutboxAttrs<T extends keyof EventMap> {
+  eventId: string;
   aggregateType: string;
   aggregateId: string;
   eventType: T;
@@ -9,6 +10,7 @@ export interface OutboxAttrs<T extends keyof EventMap> {
 }
 
 export interface OutboxDoc<T extends keyof EventMap> extends Document {
+  eventId: string;
   aggregateType: string;
   aggregateId: string;
   eventType: T;
@@ -27,6 +29,7 @@ interface OutboxModel extends Model<OutboxDoc<keyof EventMap>> {
 
 const outboxSchema = new Schema(
   {
+    eventId: { type: String, required: true },
     aggregateType: { type: String, required: true },
     aggregateId: { type: String, required: true },
     eventType: { type: String, required: true },

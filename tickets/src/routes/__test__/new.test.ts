@@ -123,6 +123,7 @@ it('should publish TicketCreated events from outbox', async () => {
   await ticket.save();
 
   await Outbox.create({
+    eventId: 'event_id',
     aggregateType: 'ticket',
     aggregateId: ticket.id,
     eventType: 'TicketCreated',
@@ -141,13 +142,16 @@ it('should publish TicketCreated events from outbox', async () => {
   await runOutboxWorkerOnce();
 
   // проверяем, что publisher был вызван с правильными данными
-  expect(mockPublish).toHaveBeenCalledWith({
-    id: ticket.id,
-    title: ticket.title,
-    price: ticket.price,
-    userId: ticket.userId,
-    version: ticket.version,
-  });
+  expect(mockPublish).toHaveBeenCalledWith(
+    {
+      id: ticket.id,
+      title: ticket.title,
+      price: ticket.price,
+      userId: ticket.userId,
+      version: ticket.version,
+    },
+    expect.any(Object)
+  );
 
   // проверяем, что статус outbox записи обновлен
   const outboxRecord = await Outbox.findOne({ aggregateId: ticket.id });

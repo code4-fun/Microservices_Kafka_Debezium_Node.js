@@ -4,6 +4,7 @@ import { fetchOrderByIdWithTicket, updateOrderWithVersion } from '../services/or
 import { requireAuth, NotFoundError, NotAuthorizedError } from '@aitickets123654/common-kafka';
 import { Prisma } from '@prisma/client';
 import { db } from '../db';
+import { randomUUID } from 'crypto';
 
 const router = express.Router();
 
@@ -39,6 +40,7 @@ router.delete('/api/orders/:orderId', requireAuth, async (req: Request, res: Res
 
     await tx.outbox.create({
       data: {
+        eventId: randomUUID(),
         aggregatetype: 'order',
         aggregateid: updatedOrder.id,
         type: 'orders.order.cancelled.v1',

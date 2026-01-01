@@ -26,7 +26,13 @@ const setup = async () => {
   };
 
   // @ts-ignore
-  const payload: EachMessagePayload = null;
+  const payload = {
+    message: {
+      headers: {
+        eventId: Buffer.from('test-event-id'),
+      },
+    },
+  } as EachMessagePayload;
 
   return { listener, data, payload };
 };
@@ -43,4 +49,14 @@ it('creates and saves a ticket', async () => {
   expect(ticket).toBeDefined();
   expect(ticket!.title).toEqual(data.title);
   expect(ticket!.price).toEqual(data.price);
+});
+
+it('listener is idempotent for duplicate event', async () => {
+  const { listener, data, payload } = await setup();
+
+  await listener.onMessage(data, payload);
+  await listener.onMessage(data, payload); // duplicate
+
+  const tickets = await db.ticket.findMany();
+  expect(tickets).toHaveLength(1);
 });
